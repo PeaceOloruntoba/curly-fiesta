@@ -7,12 +7,15 @@ import { rateLimiter } from './middlewares/rateLimit.js';
 import { errorHandler, notFound } from './middlewares/error.js';
 import v1 from './routes/v1.js';
 import { ensureMigrations } from './db/migrate.js';
+import cookieParser from 'cookie-parser';
+import { env } from './config/env.js';
 
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: env.CORS_ORIGIN || true, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
 app.use(requestLogger);
 app.use(rateLimiter);
 

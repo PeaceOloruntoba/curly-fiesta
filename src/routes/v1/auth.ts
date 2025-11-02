@@ -5,6 +5,7 @@ import { query } from '../../db/pool.js';
 import { signToken } from '../../utils/jwt.js';
 import { generateOtp } from '../../utils/otp.js';
 import { env } from '../../config/env.js';
+import { sendOtpEmail, sendResetEmail } from '../../utils/mailer.js';
 
 const router = Router();
 
@@ -30,8 +31,13 @@ router.post('/register', async (req: Request, res: Response) => {
     [userId, code, expires]
   );
 
-  // TODO: send OTP via email/SMS. For now, return it in dev response
-  return res.status(201).json({ message: 'Registered. Verify OTP to activate account.', otp: code });
+  if (env.NODE_ENV !== 'production') {
+    await sendOtpEmail(email, code);
+    return res.status(201).json({ message: 'Registered. Verify OTP to activate account.', otp: code });
+  } else {
+    await sendOtpEmail(email, code);
+    return res.status(201).json({ message: 'Registered. Verify OTP to activate account.' });
+  }
 });
 
 router.post('/verify-otp', async (req: Request, res: Response) => {
@@ -68,7 +74,38 @@ router.post('/login', async (req: Request, res: Response) => {
   if (!user.verified_at) return res.status(403).json({ error: 'Account not verified' });
 
   const token = signToken({ sub: user.id, email });
+  // issue refresh token
+  const rt = crypto.randomBytes(32).toString('hex');
+  const rtExpires = new Date(Date.now() + 30 * 24 * 60 * 60_000); // 30 days
+  await query('INSERT INTO refresh_tokens(user_id, token, expires_at) VALUES($1,$2,$3)', [user.id, rt, rtExpires]);
+  res.cookie('rt', rt, { httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production', maxAge: 30*24*60*60*1000 });
   return res.json({ token });
+});
+
+router.post('/refresh', async (req: Request, res: Response) => {
+  const rt = req.cookies?.rt as string | undefined;
+  if (!rt) return res.status(401).json({ error: 'Missing token' });
+  const { rows } = await query<{ user_id: string; expires_at: string }>('SELECT user_id, expires_at FROM refresh_tokens WHERE token=$1', [rt]);
+  if (!rows.length) return res.status(401).json({ error: 'Invalid token' });
+  const rec = rows[0];
+  if (new Date(rec.expires_at) < new Date()) return res.status(401).json({ error: 'Expired token' });
+  // rotate token
+  await query('DELETE FROM refresh_tokens WHERE token=$1', [rt]);
+  const newRt = crypto.randomBytes(32).toString('hex');
+  const rtExpires = new Date(Date.now() + 30 * 24 * 60 * 60_000);
+  await query('INSERT INTO refresh_tokens(user_id, token, expires_at) VALUES($1,$2,$3)', [rec.user_id, newRt, rtExpires]);
+  res.cookie('rt', newRt, { httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production', maxAge: 30*24*60*60*1000 });
+  // issue new access token
+  const { rows: u } = await query<{ email: string }>('SELECT email FROM users WHERE id=$1', [rec.user_id]);
+  const access = signToken({ sub: rec.user_id, email: u[0].email });
+  return res.json({ token: access });
+});
+
+router.post('/logout', async (req: Request, res: Response) => {
+  const rt = req.cookies?.rt as string | undefined;
+  if (rt) await query('DELETE FROM refresh_tokens WHERE token=$1', [rt]);
+  res.clearCookie('rt');
+  return res.json({ message: 'Logged out' });
 });
 
 router.post('/forgot-password', async (req: Request, res: Response) => {
@@ -80,8 +117,8 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
   const token = crypto.randomBytes(24).toString('hex');
   const expires = new Date(Date.now() + 60 * 60_000); // 1h
   await query('INSERT INTO password_resets(user_id, token, expires_at) VALUES($1,$2,$3)', [userId, token, expires]);
-  // TODO: send token via email link
-  return res.json({ message: 'Password reset created', token });
+  await sendResetEmail(email, token);
+  return res.json({ message: 'Password reset created' });
 });
 
 router.post('/reset-password', async (req: Request, res: Response) => {

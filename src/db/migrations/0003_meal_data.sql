@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS user_meal_plans (
+  user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  plan JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
