@@ -25,7 +25,7 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ ok: true, service: 'curly-fiesta-api' });
 });
 
-app.use('/v1', v1);
+app.use("/api/v1", v1);
 
 app.use(notFound);
 app.use(errorHandler);
