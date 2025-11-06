@@ -11,6 +11,8 @@ router
   .post(requireAuth, ctrl.upsert)
   .all(methodNotAllowed);
 
+router.get('/summary', requireAuth, ctrl.summary);
+
 router
   .route('/:id')
   .get(requireAuth, ctrl.show)

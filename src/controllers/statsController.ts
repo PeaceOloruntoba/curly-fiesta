@@ -30,3 +30,10 @@ export async function destroy(req: AuthedRequest, res: Response) {
   await svc.softDeleteStat(req.user!.id, id);
   res.status(204).end();
 }
+
+export async function summary(req: AuthedRequest, res: Response) {
+  const period = (req.query.period as svc.SummaryPeriod | undefined) ?? 'today';
+  if (!['today','week','month'].includes(period)) return res.status(400).json({ error: 'period must be today|week|month' });
+  const out = await svc.computeStatsSummary(req.user!.id, period);
+  res.json(out);
+}

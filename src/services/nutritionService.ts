@@ -33,3 +33,24 @@ export async function softDeleteNutrition(id:number) {
   await query('UPDATE nutrition SET deleted_at=NOW() WHERE id=$1 AND deleted_at IS NULL',[id]);
   return { deleted:true } as const;
 }
+
+export type MacroTotals = { calories:number; protein_grams:number; carbs_grams:number; fat_grams:number };
+
+export async function getNutritionByRecipeIds(recipeIds: number[]): Promise<Record<number, MacroTotals>> {
+  if (!recipeIds.length) return {};
+  const unique = Array.from(new Set(recipeIds));
+  const { rows } = await query<{ recipe_id:number; calories:number; protein_grams:number; carbs_grams:number; fat_grams:number }>(
+    'SELECT recipe_id, calories, protein_grams, carbs_grams, fat_grams FROM nutrition WHERE deleted_at IS NULL AND recipe_id = ANY($1::int[])',
+    [unique]
+  );
+  const map: Record<number, MacroTotals> = {};
+  for (const r of rows) {
+    const cur = map[r.recipe_id] || { calories:0, protein_grams:0, carbs_grams:0, fat_grams:0 };
+    cur.calories += r.calories || 0;
+    cur.protein_grams += r.protein_grams || 0;
+    cur.carbs_grams += r.carbs_grams || 0;
+    cur.fat_grams += r.fat_grams || 0;
+    map[r.recipe_id] = cur;
+  }
+  return map;
+}
