@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
+import helmetPkg from 'helmet';
 import { requestLogger, logger } from './config/logger.js';
 import { rateLimiter } from './middlewares/rateLimit.js';
 import { errorHandler, notFound } from './middlewares/error.js';
@@ -9,6 +9,8 @@ import v1 from './routes/v1.js';
 import { ensureMigrations } from './db/migrate.js';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
+
+const helmet = (helmetPkg as any).default ?? (helmetPkg as any);
 
 const app = express();
 
