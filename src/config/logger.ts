@@ -1,5 +1,7 @@
 import pino from 'pino';
-import pinoHttp from 'pino-http';
+import pinoHttpPkg from 'pino-http';
+
+const pinoHttp = (pinoHttpPkg as any).default ?? (pinoHttpPkg as any);
 
 const isDev = process.env.NODE_ENV !== 'production';
 
