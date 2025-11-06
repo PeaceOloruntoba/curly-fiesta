@@ -28,16 +28,21 @@ app.use('/api/v1', v1);
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = Number(process.env.PORT || 4000);
+// Export app for serverless platforms (e.g., Vercel)
+export default app;
 
-(async () => {
-  try {
-    await ensureMigrations();
-    app.listen(PORT, () => {
-      logger.info({ port: PORT }, `API running on http://localhost:${PORT}`);
-    });
-  } catch (err) {
-    logger.error({ err }, 'Failed to start server');
-    process.exit(1);
-  }
-})();
+// Start HTTP server only when running as a standalone process (dev/prod server)
+if (!process.env.VERCEL) {
+  const PORT = Number(process.env.PORT || 4000);
+  (async () => {
+    try {
+      await ensureMigrations();
+      app.listen(PORT, () => {
+        logger.info({ port: PORT }, `API running on http://localhost:${PORT}`);
+      });
+    } catch (err) {
+      logger.error({ err }, 'Failed to start server');
+      process.exit(1);
+    }
+  })();
+}

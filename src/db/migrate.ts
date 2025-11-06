@@ -1,5 +1,6 @@
 import { pool, query } from './pool.js';
 import { logger } from '../config/logger.js';
+import { hasDb } from '../config/env.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -23,6 +24,10 @@ async function appliedMigrations(): Promise<Set<string>> {
 }
 
 export async function ensureMigrations() {
+  if (!hasDb) {
+    logger.warn('Skipping migrations because DATABASE_URL is not configured');
+    return;
+  }
   await ensureSchemaTable();
   const dir = path.join(__dirname, 'migrations');
   try {

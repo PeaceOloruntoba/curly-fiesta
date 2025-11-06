@@ -1,9 +1,12 @@
 import { z } from 'zod';
+import crypto from 'crypto';
+import { logger } from './logger.js';
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.string().optional(),
-  DATABASE_URL: z.string().url({ message: 'DATABASE_URL must be a valid URL' }),
+  // Make DATABASE_URL optional to allow the server to start without a DB in local/dev.
+  DATABASE_URL: z.string().url({ message: 'DATABASE_URL must be a valid URL' }).optional(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 chars'),
   OTP_TTL_MINUTES: z.string().default('10'),
   CORS_ORIGIN: z.string().optional(),
@@ -16,6 +19,17 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-export const env: Env = EnvSchema.parse(process.env);
+// Prepare a mutable copy of process.env for defaults
+const raw = { ...process.env } as Record<string, string | undefined>;
+
+// Auto-generate a dev/test JWT secret when missing to avoid startup crashes
+if (!raw.JWT_SECRET && (raw.NODE_ENV ?? 'development') !== 'production') {
+  raw.JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  // eslint-disable-next-line no-console
+  console.warn('[env] JWT_SECRET was not set. Generated a temporary dev secret. Tokens will reset on restart.');
+}
+
+export const env: Env = EnvSchema.parse(raw);
 
 export const isProd = env.NODE_ENV === 'production';
+export const hasDb = !!env.DATABASE_URL;
