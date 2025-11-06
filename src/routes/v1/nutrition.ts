@@ -1,5 +1,5 @@
-import { Router, type Request, type Response } from 'express';
-import * as ctrl from '../../controllers/recipesController.js';
+import { Router } from 'express';
+import * as ctrl from '../../controllers/nutritionController.js';
 import { methodNotAllowed } from '../../middlewares/methodNotAllowed.js';
 
 const router = Router();

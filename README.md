@@ -139,3 +139,72 @@ Base URL: /api/v1
 - Vercel: place api/index.ts as entry. Set env vars in Vercel dashboard. Use a managed Postgres (e.g., Supabase, Neon).
 - Run migrations via CI/CD or one-off job before promoting traffic.
 - Ensure JWT_SECRET is set and long in production.
+
+## Nutrition
+
+- GET /nutrition
+- Query: recipeId (optional)
+- Response: [ { id, recipe_id, calories, protein_grams, carbs_grams, fat_grams } ]
+
+- POST /nutrition
+- Body:
+  {
+    "recipe_id": 1,
+    "calories": 400,
+    "protein_grams": 20,
+    "carbs_grams": 50,
+    "fat_grams": 10
+  }
+
+- GET /nutrition/:id
+- PUT /nutrition/:id
+- DELETE /nutrition/:id (soft delete)
+
+## Pantry (auth required)
+
+Headers: Authorization: Bearer <JWT>
+
+- GET /pantry
+- POST /pantry
+- Body:
+  { "name": "Rice", "quantity": "2", "unit": "kg", "expires_at": "2025-12-31T00:00:00Z" }
+
+- GET /pantry/:id
+- PUT /pantry/:id
+- DELETE /pantry/:id (soft delete)
+
+## Shopping (auth required)
+
+Headers: Authorization: Bearer <JWT>
+
+- GET /shopping
+- POST /shopping
+- Body:
+  { "name": "Tomatoes", "quantity": "1 crate" }
+
+- GET /shopping/:id
+- PUT /shopping/:id
+- DELETE /shopping/:id (soft delete)
+
+## Stats (auth required)
+
+Headers: Authorization: Bearer <JWT>
+
+- GET /stats?from=YYYY-MM-DD&to=YYYY-MM-DD
+- POST /stats
+- Body:
+  { "stat_date": "2025-11-01", "calories": 2000, "protein_grams": 100, "carbs_grams": 250, "fat_grams": 60 }
+
+- GET /stats/:id
+- PUT /stats/:id
+- DELETE /stats/:id (soft delete)
+
+## Seeding
+
+- Seed script: src/db/seed.ts
+- Run (ESM):
+  node --loader ts-node/esm src/db/seed.ts
+- Seeds demo user:
+  email: peaceoloruntoba22@gmail.com
+  password: password (hashed)
+  name: Peace Oloruntoba
