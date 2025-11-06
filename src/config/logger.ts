@@ -4,10 +4,11 @@ import pinoHttpPkg from 'pino-http';
 const pinoHttp = (pinoHttpPkg as any).default ?? (pinoHttpPkg as any);
 
 const isDev = process.env.NODE_ENV !== 'production';
+const isServerless = !!process.env.VERCEL;
 
 export const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
-  transport: isDev
+  transport: isDev && !isServerless
     ? {
         target: 'pino-pretty',
         options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' },
