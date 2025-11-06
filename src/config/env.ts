@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 import { logger } from './logger.js';
 
 const EnvSchema = z.object({

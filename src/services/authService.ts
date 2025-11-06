@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 import { query } from '../db/pool.js';
 import { signToken } from '../utils/jwt.js';
 import { generateOtp } from '../utils/otp.js';

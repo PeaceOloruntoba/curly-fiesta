@@ -1,8 +1,8 @@
 import { pool, query } from './pool.js';
 import { logger } from '../config/logger.js';
 import { hasDb } from '../config/env.js';
-import fs from 'fs/promises';
-import path from 'path';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
