@@ -10,7 +10,9 @@
     "dev": "nodemon",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "tsx src/db/runMigrate.ts",
+    "seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -24,19 +26,21 @@
     "nodemailer": "^6.9.16",
     "pg": "^8.13.1",
     "pino": "^9.5.0",
+    "pino-http": "^11.0.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
     "@types/cookie-parser": "^1.4.7",
+    "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.1",
-    "@types/pg": "^8.11.10",
+    "@types/pg": "^8.15.6",
     "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.6.3"
   }
 }
