@@ -301,5 +301,3 @@
  - **Secrets**: set strong `JWT_SECRET` and Cloudinary creds.
  
  ---
- 
- If you want a machine-readable spec, consider adding an OpenAPI file next; it enables generated clients and better API assistance.
