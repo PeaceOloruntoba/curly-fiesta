@@ -43,9 +43,9 @@ export async function verifyEmailOtp(email: string, code: string) {
   return { ok: true } as const;
 }
 
-export async function loginUser(email: string, password: string) {
-  const { rows } = await query<{ id: string; password_hash: string; verified_at: string | null }>(
-    'SELECT id, password_hash, verified_at FROM users WHERE email=$1',
+export async function loginUser(email: string, password: string, ctx?: { ua?: string; ip?: string }) {
+  const { rows } = await query<{ id: string; password_hash: string; verified_at: string | null; token_version: number }>(
+    'SELECT id, password_hash, verified_at, token_version FROM users WHERE email=$1',
     [email]
   );
   if (!rows.length) return { invalid: true } as const;
@@ -53,29 +53,47 @@ export async function loginUser(email: string, password: string) {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return { invalid: true } as const;
   if (!user.verified_at) return { unverified: true } as const;
-  const token = signToken({ sub: user.id, email });
+  const token = signToken({ sub: user.id, email, tv: user.token_version });
   const rt = crypto.randomBytes(32).toString('hex');
   const rtExpires = new Date(Date.now() + 30 * 24 * 60 * 60_000);
-  await query('INSERT INTO refresh_tokens(user_id, token, expires_at) VALUES($1,$2,$3)', [user.id, rt, rtExpires]);
-  return { token, rt, rtExpires, userId: user.id } as const;
+  const hash = crypto.createHash('sha256').update(rt).digest('hex');
+  await query(
+    'INSERT INTO refresh_tokens(user_id, token, token_hash, expires_at, user_agent, ip, last_used_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
+    [user.id, rt, hash, rtExpires, ctx?.ua || null, ctx?.ip || null]
+  );
+  return { token, rt, rtExpires, userId: user.id, tv: user.token_version } as const;
 }
 
-export async function refreshAccessToken(rt: string) {
-  const { rows } = await query<{ user_id: string; expires_at: string }>('SELECT user_id, expires_at FROM refresh_tokens WHERE token=$1', [rt]);
+export async function refreshAccessToken(rt: string, ctx?: { ua?: string; ip?: string }) {
+  const incomingHash = crypto.createHash('sha256').update(rt).digest('hex');
+  const { rows } = await query<{ user_id: string; expires_at: string }>('SELECT user_id, expires_at FROM refresh_tokens WHERE token_hash=$1 AND revoked_at IS NULL', [incomingHash]);
   if (!rows.length) return { invalid: true } as const;
   const rec = rows[0];
   if (new Date(rec.expires_at) < new Date()) return { expired: true } as const;
-  await query('DELETE FROM refresh_tokens WHERE token=$1', [rt]);
+  await query('DELETE FROM refresh_tokens WHERE token_hash=$1', [incomingHash]);
   const newRt = crypto.randomBytes(32).toString('hex');
   const rtExpires = new Date(Date.now() + 30 * 24 * 60 * 60_000);
-  await query('INSERT INTO refresh_tokens(user_id, token, expires_at) VALUES($1,$2,$3)', [rec.user_id, newRt, rtExpires]);
-  const { rows: u } = await query<{ email: string }>('SELECT email FROM users WHERE id=$1', [rec.user_id]);
-  const access = signToken({ sub: rec.user_id, email: u[0].email });
+  const hash = crypto.createHash('sha256').update(newRt).digest('hex');
+  await query(
+    'INSERT INTO refresh_tokens(user_id, token, token_hash, expires_at, user_agent, ip, last_used_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
+    [rec.user_id, newRt, hash, rtExpires, ctx?.ua || null, ctx?.ip || null]
+  );
+  const { rows: u } = await query<{ email: string; token_version: number }>('SELECT email, token_version FROM users WHERE id=$1', [rec.user_id]);
+  const access = signToken({ sub: rec.user_id, email: u[0].email, tv: u[0].token_version });
   return { token: access, newRt, rtExpires } as const;
 }
 
 export async function logout(rt?: string) {
-  if (rt) await query('DELETE FROM refresh_tokens WHERE token=$1', [rt]);
+  if (rt) {
+    const h = crypto.createHash('sha256').update(rt).digest('hex');
+    await query('DELETE FROM refresh_tokens WHERE token_hash=$1', [h]);
+  }
+  return { ok: true } as const;
+}
+
+export async function logoutAll(userId: string) {
+  await query('DELETE FROM refresh_tokens WHERE user_id=$1', [userId]);
+  await query('UPDATE users SET token_version = token_version + 1 WHERE id=$1', [userId]);
   return { ok: true } as const;
 }
 

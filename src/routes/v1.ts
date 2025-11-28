@@ -7,6 +7,7 @@ import nutrition from './v1/nutrition.js';
 import pantry from './v1/pantry.js';
 import shopping from './v1/shopping.js';
 import stats from './v1/stats.js';
+import admin from './v1/admin.js';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/nutrition', nutrition);
 router.use('/pantry', pantry);
 router.use('/shopping', shopping);
 router.use('/stats', stats);
+router.use('/admin', admin);
 
 export default router;
