@@ -217,10 +217,45 @@
    - 200 { "id":123, "image_url":"https://..." }
  - DELETE /recipes/:id
    - 204
- 
- ---
- 
- ## Error format (global)
+
+---
+
+## Subscription & Billing
+
+All user modules are gated when subscription is active. If subscription is disabled by admin, gating is bypassed.
+
+### Admin subscription management
+- GET /admin/subscriptions/settings
+- PUT /admin/subscriptions/settings
+- POST /admin/subscriptions/founder-window/start
+- POST /admin/subscriptions/founder-window/stop
+- GET /admin/subscriptions/overview
+
+Settings include:
+- is_active, trial_days
+- founder_discount_enabled, founder_window_starts_at, founder_window_ends_at
+- founder_capacity (default 100), founder_discount_pct (default 50)
+
+### User billing
+- GET /billing/plans
+  - 200: array of plans with price_cents; includes founder discount when eligible
+- GET /billing/status
+  - 200: { status, plan, trial_end, current_period_end }
+- POST /billing/checkout
+  - Body: { "plan":"monthly|quarterly|biannual|annual" }
+  - 200: { reference, authorization_url } to open Paystack checkout
+- POST /billing/cancel
+  - 200: { ok:true } — stops auto-renew; access remains until period end
+- POST /billing/webhook/paystack
+  - Configure in Paystack Dashboard. Verifies signature and updates subscription.
+
+### Enforcement
+- 402 { "error":"Subscription required", "errorMessage":"Subscribe or start trial" }
+- Trial auto-start: On first access if enabled (default 7 days).
+
+---
+
+## Error format (global)
  
  All errors return:
  ```json
@@ -229,12 +264,18 @@
  Common statuses: 400, 401, 403, 404, 409, 500.
  
  ## Environment
- 
- Required: JWT_SECRET, DATABASE_URL. Optional SMTP for OTP emails. Cloudinary for recipe images:
- - CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
- - CLOUDINARY_FOLDER (default: curly-fiesta/recipes)
- 
- ## Notes
- - Access token: 24h; Refresh token: 30d (rotated on each refresh).
- - Mobile refresh via Authorization: Refresh <token>.
- - Cookies httpOnly; SameSite=Lax; Secure in production.
+
+Required: JWT_SECRET, DATABASE_URL. Optional SMTP for OTP emails. Cloudinary for recipe images:
+- CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+- CLOUDINARY_FOLDER (default: curly-fiesta/recipes)
+
+Paystack (Nigeria):
+- PAYSTACK_SECRET_KEY
+- PAYSTACK_PUBLIC_KEY
+- PAYSTACK_BASE_URL (default: https://api.paystack.co)
+- Webhook: set to https://<your-host>/v1/billing/webhook/paystack
+
+## Notes
+- Access token: 24h; Refresh token: 30d (rotated on each refresh).
+- Mobile refresh via Authorization: Refresh <token>.
+- Cookies httpOnly; SameSite=Lax; Secure in production.
