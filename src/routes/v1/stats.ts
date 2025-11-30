@@ -5,19 +5,12 @@ import { requireAuth } from '../../middlewares/auth.js';
 
 const router = Router();
 
-router
-  .route('/')
-  .get(requireAuth, ctrl.index)
-  .post(requireAuth, ctrl.upsert)
-  .all(methodNotAllowed);
-
+// Stats are calculated from meals; expose summary endpoint only
 router.get('/summary', requireAuth, ctrl.summary);
 
-router
-  .route('/:id')
-  .get(requireAuth, ctrl.show)
-  .put(requireAuth, ctrl.update)
-  .delete(requireAuth, ctrl.destroy)
-  .all(methodNotAllowed);
+// Optional: remove detailed per-id endpoints since stats are derived
+router.route('/').all(methodNotAllowed);
+
+router.route('/:id').all(methodNotAllowed);
 
 export default router;
