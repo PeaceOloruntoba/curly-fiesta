@@ -98,9 +98,15 @@ export async function handleWebhook(rawBody: string, signature?: string) {
     const { rows } = await query<{ id: string }>('SELECT id FROM users WHERE email=$1', [email]);
     if (!rows.length) return { ignored: true } as const;
     const userId = rows[0].id;
-    const { rows: subRows } = await query<{ plan: Plan }>('SELECT plan FROM user_subscriptions WHERE user_id=$1', [userId]);
+    const { rows: subRows } = await query<{ plan: Plan; current_period_end: string | null; trial_end: string | null }>('SELECT plan, current_period_end, trial_end FROM user_subscriptions WHERE user_id=$1', [userId]);
     const plan = subRows[0]?.plan || 'monthly';
-    const start = new Date();
+    const now = new Date();
+    const existingCpe = subRows[0]?.current_period_end ? new Date(subRows[0]!.current_period_end!) : null;
+    const existingTrial = subRows[0]?.trial_end ? new Date(subRows[0]!.trial_end!) : null;
+    // Stacking: start from the later of now, current_period_end, or trial_end
+    let start = now;
+    if (existingCpe && existingCpe > start) start = existingCpe;
+    if (existingTrial && existingTrial > start) start = existingTrial;
     const end = new Date(start);
     if (plan === 'monthly') end.setMonth(end.getMonth() + 1);
     if (plan === 'quarterly') end.setMonth(end.getMonth() + 3);
