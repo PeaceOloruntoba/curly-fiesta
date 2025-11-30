@@ -273,7 +273,7 @@ Paystack (Nigeria):
 - PAYSTACK_SECRET_KEY
 - PAYSTACK_PUBLIC_KEY
 - PAYSTACK_BASE_URL (default: https://api.paystack.co)
-- Webhook: set to https://<your-host>/v1/billing/webhook/paystack
+- Webhook: set to http://localhost:4000/v1/billing/webhook/paystack
 
 ## Notes
 - Access token: 24h; Refresh token: 30d (rotated on each refresh).
