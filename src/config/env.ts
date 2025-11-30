@@ -21,7 +21,8 @@ const EnvSchema = z.object({
   CLOUDINARY_FOLDER: z.string().optional(),
   PAYSTACK_SECRET_KEY: z.string().optional(),
   PAYSTACK_PUBLIC_KEY: z.string().optional(),
-  PAYSTACK_BASE_URL: z.string().optional(),
+  PAYSTACK_BASE_URL: z.string().default('https://api.paystack.co').optional(),
+  FRONTEND_BASE_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

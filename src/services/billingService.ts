@@ -44,7 +44,15 @@ export async function initCheckout(userId: string, plan: Plan) {
   }
   // Mark founder if eligible
   await markFounderIfEligible(userId);
-  // Create a pending record for visibility
+  // Gather user + pricing
+  const s = await getSettings();
+  const { rows: userRows } = await query<{ email: string; is_founder: boolean }>('SELECT email, is_founder FROM users WHERE id=$1', [userId]);
+  const email = userRows[0]?.email;
+  if (!email) throw new AppError(400, 'User email missing', 'Cannot initialize payment');
+  const base = priceForPlanCents(s, plan);
+  const amountCents = applyFounderDiscountCents(base, s, !!userRows[0]?.is_founder);
+  const amountKobo = amountCents * 1; // cents already represent kobo if currency is NGN; keep 1:1
+  // Create or update pending record
   const ref = crypto.randomBytes(8).toString('hex');
   await query(
     `INSERT INTO user_subscriptions(user_id, plan, status, gateway, gateway_reference)
@@ -52,8 +60,23 @@ export async function initCheckout(userId: string, plan: Plan) {
      ON CONFLICT (user_id) DO UPDATE SET plan=$2, status='past_due', gateway='paystack', gateway_reference=$3, updated_at=NOW()`,
     [userId, plan, ref]
   );
-  // Frontend should call Paystack initialize or we proxy later; for now return a reference placeholder.
-  return { reference: ref } as const;
+  // Initialize Paystack
+  const callback = env.FRONTEND_BASE_URL ? `${env.FRONTEND_BASE_URL.replace(/\/$/, '')}/app/billing/processing` : undefined;
+  const resp = await fetch(`${env.PAYSTACK_BASE_URL}/transaction/initialize`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, amount: amountKobo, reference: ref, callback_url: callback }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new AppError(502, `Failed to initialize payment: ${text}`, 'Payment initialization failed');
+  }
+  const data = await resp.json();
+  const authorization_url: string | undefined = data?.data?.authorization_url || data?.authorization_url;
+  return authorization_url ? { reference: ref, authorization_url } : { reference: ref } as const;
 }
 
 export function verifyPaystackSignature(secret: string, rawBody: string, signature?: string) {
