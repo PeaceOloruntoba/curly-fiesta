@@ -52,7 +52,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     if ('invalid' in out) throw AppError.unauthorized('Invalid credentials', 'Invalid email or password');
     if ('unverified' in out) throw AppError.forbidden('Account not verified', 'Verify your email to continue');
     res.cookie('rt', out.rt, { httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production', maxAge: 30*24*60*60*1000 });
-    return res.json({ token: out.token });
+    return res.json({ token: out.token, user: out.user });
   } catch (err) {
     next(err);
   }
@@ -70,7 +70,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
     if ('invalid' in out) throw AppError.unauthorized('Invalid token', 'Please sign in');
     if ('expired' in out) throw AppError.unauthorized('Expired token', 'Please sign in');
     res.cookie('rt', out.newRt, { httpOnly: true, sameSite: 'lax', secure: env.NODE_ENV === 'production', maxAge: 30*24*60*60*1000 });
-    return res.json({ token: out.token });
+    return res.json({ token: out.token, user: out.user });
   } catch (err) {
     next(err);
   }

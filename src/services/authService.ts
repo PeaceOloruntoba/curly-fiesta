@@ -44,8 +44,8 @@ export async function verifyEmailOtp(email: string, code: string) {
 }
 
 export async function loginUser(email: string, password: string, ctx?: { ua?: string; ip?: string }) {
-  const { rows } = await query<{ id: string; password_hash: string; verified_at: string | null; token_version: number }>(
-    'SELECT id, password_hash, verified_at, token_version FROM users WHERE email=$1',
+  const { rows } = await query<{ id: string; password_hash: string; verified_at: string | null; token_version: number; name: string | null; role: 'user' | 'admin' }>(
+    'SELECT id, password_hash, verified_at, token_version, name, role FROM users WHERE email=$1',
     [email]
   );
   if (!rows.length) return { invalid: true } as const;
@@ -61,7 +61,7 @@ export async function loginUser(email: string, password: string, ctx?: { ua?: st
     'INSERT INTO refresh_tokens(user_id, token, token_hash, expires_at, user_agent, ip, last_used_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
     [user.id, rt, hash, rtExpires, ctx?.ua || null, ctx?.ip || null]
   );
-  return { token, rt, rtExpires, userId: user.id, tv: user.token_version } as const;
+  return { token, rt, rtExpires, userId: user.id, tv: user.token_version, user: { id: user.id, email, name: user.name, role: user.role } } as const;
 }
 
 export async function refreshAccessToken(rt: string, ctx?: { ua?: string; ip?: string }) {
@@ -78,9 +78,9 @@ export async function refreshAccessToken(rt: string, ctx?: { ua?: string; ip?: s
     'INSERT INTO refresh_tokens(user_id, token, token_hash, expires_at, user_agent, ip, last_used_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
     [rec.user_id, newRt, hash, rtExpires, ctx?.ua || null, ctx?.ip || null]
   );
-  const { rows: u } = await query<{ email: string; token_version: number }>('SELECT email, token_version FROM users WHERE id=$1', [rec.user_id]);
+  const { rows: u } = await query<{ email: string; token_version: number; name: string | null; role: 'user' | 'admin' }>('SELECT email, token_version, name, role FROM users WHERE id=$1', [rec.user_id]);
   const access = signToken({ sub: rec.user_id, email: u[0].email, tv: u[0].token_version });
-  return { token: access, newRt, rtExpires } as const;
+  return { token: access, newRt, rtExpires, user: { id: rec.user_id, email: u[0].email, name: u[0].name, role: u[0].role } } as const;
 }
 
 export async function logout(rt?: string) {
