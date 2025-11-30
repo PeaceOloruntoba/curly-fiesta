@@ -238,4 +238,3 @@
  - Access token: 24h; Refresh token: 30d (rotated on each refresh).
  - Mobile refresh via Authorization: Refresh <token>.
  - Cookies httpOnly; SameSite=Lax; Secure in production.
- 

@@ -1,0 +1,95 @@
+import crypto from 'crypto';
+import { env } from '../config/env.js';
+import { query } from '../db/pool.js';
+import { AppError } from '../utils/appError.js';
+import { getSettings, priceForPlanCents, applyFounderDiscountCents, markFounderIfEligible, type Plan } from './subscriptionService.js';
+import { sendSubscriptionNotice } from '../utils/mailer.js';
+
+export async function listPlans(userId: string) {
+  const s = await getSettings();
+  const { rows } = await query<{ email: string; is_founder: boolean }>('SELECT email, is_founder FROM users WHERE id=$1', [userId]);
+  const user = rows[0];
+  const isFounder = !!user?.is_founder;
+  const plans: Plan[] = ['monthly','quarterly','biannual','annual'];
+  const out = plans.map((p) => {
+    const base = priceForPlanCents(s, p);
+    const price = applyFounderDiscountCents(base, s, isFounder);
+    return { plan: p, price_cents: price, currency: s.currency };
+  });
+  return { is_active: s.is_active, plans: out };
+}
+
+export async function getStatus(userId: string) {
+  const s = await getSettings();
+  const { rows: sub } = await query('SELECT * FROM user_subscriptions WHERE user_id=$1', [userId]);
+  return { is_active: s.is_active, subscription: sub[0] || null };
+}
+
+export async function cancel(userId: string) {
+  const now = new Date();
+  await query("UPDATE user_subscriptions SET status='canceled', canceled_at=$2, updated_at=NOW() WHERE user_id=$1", [userId, now]);
+  const { rows } = await query<{ email: string; current_period_end: string | null }>(
+    'SELECT u.email, us.current_period_end FROM users u LEFT JOIN user_subscriptions us ON us.user_id=u.id WHERE u.id=$1',
+    [userId]
+  );
+  const email = rows[0]?.email;
+  const cpe = rows[0]?.current_period_end || null;
+  if (email) await sendSubscriptionNotice(email, 'sub_canceled', { current_period_end: cpe });
+  return { ok: true } as const;
+}
+
+export async function initCheckout(userId: string, plan: Plan) {
+  if (!env.PAYSTACK_SECRET_KEY) {
+    throw new AppError(503, 'Payment gateway not configured', 'Payment is temporarily unavailable');
+  }
+  // Mark founder if eligible
+  await markFounderIfEligible(userId);
+  // Create a pending record for visibility
+  const ref = crypto.randomBytes(8).toString('hex');
+  await query(
+    `INSERT INTO user_subscriptions(user_id, plan, status, gateway, gateway_reference)
+     VALUES($1,$2,'past_due','paystack',$3)
+     ON CONFLICT (user_id) DO UPDATE SET plan=$2, status='past_due', gateway='paystack', gateway_reference=$3, updated_at=NOW()`,
+    [userId, plan, ref]
+  );
+  // Frontend should call Paystack initialize or we proxy later; for now return a reference placeholder.
+  return { reference: ref } as const;
+}
+
+export function verifyPaystackSignature(secret: string, rawBody: string, signature?: string) {
+  if (!signature) return false;
+  const hash = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
+  return hash === signature;
+}
+
+export async function handleWebhook(rawBody: string, signature?: string) {
+  if (!env.PAYSTACK_SECRET_KEY) throw new AppError(503, 'Payment gateway not configured', 'Payment is temporarily unavailable');
+  if (!verifyPaystackSignature(env.PAYSTACK_SECRET_KEY, rawBody, signature)) {
+    throw AppError.forbidden('Invalid signature', 'Invalid webhook');
+  }
+  const event = JSON.parse(rawBody);
+  if (event?.event === 'charge.success') {
+    const customer = event?.data?.customer;
+    const email = customer?.email as string | undefined;
+    if (!email) return { ignored: true } as const;
+    const { rows } = await query<{ id: string }>('SELECT id FROM users WHERE email=$1', [email]);
+    if (!rows.length) return { ignored: true } as const;
+    const userId = rows[0].id;
+    const { rows: subRows } = await query<{ plan: Plan }>('SELECT plan FROM user_subscriptions WHERE user_id=$1', [userId]);
+    const plan = subRows[0]?.plan || 'monthly';
+    const start = new Date();
+    const end = new Date(start);
+    if (plan === 'monthly') end.setMonth(end.getMonth() + 1);
+    if (plan === 'quarterly') end.setMonth(end.getMonth() + 3);
+    if (plan === 'biannual') end.setMonth(end.getMonth() + 6);
+    if (plan === 'annual') end.setFullYear(end.getFullYear() + 1);
+    await query(
+      `UPDATE user_subscriptions SET status='active', current_period_start=$2, current_period_end=$3, gateway_subscription_code=$4, updated_at=NOW() WHERE user_id=$1`,
+      [userId, start, end, event?.data?.subscription_code || null]
+    );
+    const { rows: u } = await query<{ email: string }>('SELECT email FROM users WHERE id=$1', [userId]);
+    if (u[0]?.email) await sendSubscriptionNotice(u[0].email, 'sub_active', { plan });
+    return { ok: true } as const;
+  }
+  return { ignored: true } as const;
+}
