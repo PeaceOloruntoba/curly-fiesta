@@ -30,7 +30,9 @@ export async function getSettings(): Promise<SubscriptionSettings> {
 }
 
 export async function updateSettings(patch: Partial<SubscriptionSettings>) {
-  const keys = Object.keys(patch) as (keyof SubscriptionSettings)[];
+  const rawKeys = Object.keys(patch) as string[];
+  const disallowed = new Set(['updated_at', 'id']);
+  const keys = rawKeys.filter(k => !disallowed.has(k));
   if (!keys.length) return { updated: false } as const;
   const sets: string[] = []; const params: any[] = []; let i = 1;
   for (const k of keys) { sets.push(`${k} = $${i++}`); params.push((patch as any)[k]); }
