@@ -10,6 +10,7 @@ import {
   logoutAll as svcLogoutAll,
   createPasswordResetOtp,
   resetPasswordWithOtp,
+  resendOtp as svcResendOtp,
 } from '../services/authService.js';
 
 export async function register(req: Request, res: Response, next: NextFunction) {
@@ -107,6 +108,20 @@ export async function forgotPassword(req: Request, res: Response, next: NextFunc
     if (!email) throw AppError.badRequest('Email required', 'Enter your email');
     await createPasswordResetOtp(email);
     return res.json({ message: 'If the email exists, a reset code has been sent' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resendOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email, purpose } = req.body || {} as { email?: string; purpose?: 'verify' | 'password_reset' };
+    if (!email || !purpose || (purpose !== 'verify' && purpose !== 'password_reset')) {
+      throw AppError.badRequest('Email and valid purpose required', 'Provide email and purpose: verify or password_reset');
+    }
+    const out = await svcResendOtp(email, purpose);
+    if ('alreadyVerified' in out) return res.json({ message: 'Account already verified' });
+    return res.json({ message: 'OTP re-sent if account exists' });
   } catch (err) {
     next(err);
   }

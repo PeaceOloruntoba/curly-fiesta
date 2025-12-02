@@ -19,24 +19,57 @@
      - 400 { "error":"Missing fields", "errorMessage":"Provide first name, last name, email and password" }
      - 409 { "error":"Email already in use", "errorMessage":"Email already in use" }
  
- - POST /auth/verify-otp
-   - Body
-     ```json
-     { "email":"user@example.com", "code":"123456" }
-     ```
-   - 200
-     ```json
-     { "message":"Account verified" }
-     ```
-   - Errors
-     - 400 { "error":"Invalid code", "errorMessage":"Invalid verification code" }
-     - 400 { "error":"Code expired", "errorMessage":"Verification code expired" }
-     - 404 { "error":"User not found", "errorMessage":"Account not found" }
+- POST /auth/verify-otp
+  - Body
+    ```json
+    { "email":"user@example.com", "code":"123456" }
+    ```
+  - 200
+    ```json
+    { "message":"Account verified" }
+    ```
+  - Errors
+    - 400 { "error":"Invalid code", "errorMessage":"Invalid verification code" }
+    - 400 { "error":"Code expired", "errorMessage":"Verification code expired" }
+    - 404 { "error":"User not found", "errorMessage":"Account not found" }
+
+- POST /auth/resend-otp
+  - Body
+    ```json
+    { "email":"user@example.com", "purpose":"verify" }
+    ```
+    purpose: "verify" | "password_reset"
+  - 200
+    ```json
+    { "message":"OTP re-sent if account exists" }
+    ```
+    - If already verified and purpose=verify: `{ "message":"Account already verified" }`
+
+- POST /auth/login
+  - Body
+    ```json
+    { "email":"user@example.com", "password":"P@ssw0rd!" }
+    ```
+  - 200 (rt cookie set; 30d)
+    ```json
+    { "token":"<JWT-24h>", "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" } }
+    ```
+  - Errors
+    - 400 { "error":"Email and password required", "errorMessage":"Enter your email and password" }
+    - 401 { "error":"Invalid credentials", "errorMessage":"Invalid email or password" }
+    - 403 { "error":"Account not verified", "errorMessage":"Verify your email to continue" }
  
- - POST /auth/login
-   - Body
-     ```json
-     { "email":"user@example.com", "password":"P@ssw0rd!" }
+- POST /auth/refresh
+  - Web: uses rt cookie
+  - Mobile: header `Authorization: Refresh <token>`
+  - 200 (rt rotated)
+    ```json
+    { "token":"<JWT-24h>", "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" } }
+    ```
+  - Errors
+    - 401 { "error":"Missing token", "errorMessage":"Please sign in" }
+    - 401 { "error":"Invalid token", "errorMessage":"Please sign in" }
+    - 401 { "error":"Expired token", "errorMessage":"Please sign in" }
      ```
    - 200 (rt cookie set; 30d)
      ```json
@@ -311,11 +344,11 @@
  
  ### Recipes management
  - POST /recipes (multipart)
-   - Fields: name (req), category (req), image (file optional)
-   - 201 { "id":123 }
-   - Errors: 400 { "error":"name and category required", "errorMessage":"Provide name and category" }
+  - Fields: name (req), category (req), EITHER image (file) OR image_url (string). If both are provided, uploaded file takes precedence.
+  - 201 { "id":123 }
+  - Errors: 400 { "error":"name and category required", "errorMessage":"Provide name and category" }
  - PUT /recipes/:id
-   - Body: any of { name, category }
+   - Body: any of { name, category, image_url }
    - 200 { "ok": true } | 400 { "error":"No updatable fields", "errorMessage":"Nothing to update" }
  - POST /recipes/:id/image (multipart, field "image")
    - 200 { "id":123, "image_url":"https://..." }

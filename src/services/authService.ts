@@ -45,6 +45,33 @@ export async function registerUser(email: string, password: string, first_name: 
   return { userId, code } as const;
 }
 
+export async function resendOtp(email: string, purpose: 'verify' | 'password_reset') {
+  const { rows: users } = await query<{ id: string; verified_at?: string | null }>('SELECT id, verified_at FROM users WHERE email=$1', [email]);
+  if (!users.length) {
+    // Do not disclose whether user exists
+    return { ok: true } as const;
+  }
+  const user = users[0];
+  if (purpose === 'verify' && user.verified_at) {
+    return { alreadyVerified: true } as const;
+  }
+  const code = generateOtp();
+  if (purpose === 'verify') {
+    const ttlMin = parseInt(env.OTP_TTL_MINUTES, 10) || 10;
+    const expires = new Date(Date.now() + ttlMin * 60_000);
+    await query('INSERT INTO otps(user_id, code, expires_at, purpose) VALUES($1,$2,$3,$4)', [user.id, code, expires, 'verify']);
+    await sendOtpEmail(email, code);
+    logger.info({ email }, 'Verification OTP re-sent');
+    return { ok: true } as const;
+  } else {
+    const expires = new Date(Date.now() + 60 * 60_000);
+    await query('INSERT INTO otps(user_id, code, expires_at, purpose) VALUES($1,$2,$3,$4)', [user.id, code, expires, 'password_reset']);
+    await sendOtpEmail(email, code);
+    logger.info({ email }, 'Password reset OTP re-sent');
+    return { ok: true } as const;
+  }
+}
+
 export async function verifyEmailOtp(email: string, code: string) {
   const { rows: users } = await query<{ id: string; verified_at: string | null }>('SELECT id, verified_at FROM users WHERE email=$1', [email]);
   if (!users.length) return { notFound: true } as const;

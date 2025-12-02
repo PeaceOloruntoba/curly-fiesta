@@ -16,7 +16,7 @@ export async function show(req: Request, res: Response) {
 export async function create(req: Request, res: Response) {
   const { name, category } = req.body || {};
   if (!name || !category) throw AppError.badRequest('name and category required', 'Provide name and category');
-  let image_url: string | undefined;
+  let image_url: string | undefined = (req.body as any)?.image_url || undefined;
   const file = (req as any).file as Express.Multer.File | undefined;
   if (file) {
     const up = await uploadRecipeImage(file.buffer, file.originalname);

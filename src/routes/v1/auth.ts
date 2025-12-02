@@ -9,6 +9,8 @@ router.post('/register', authLimiter, ctrl.register);
 
 router.post('/verify-otp', otpLimiter, ctrl.verifyOtp);
 
+router.post('/resend-otp', otpLimiter, ctrl.resendOtp);
+
 router.post('/login', authLimiter, ctrl.login);
 
 router.post('/refresh', authLimiter, ctrl.refresh);
