@@ -3,6 +3,13 @@ import { AppError } from '../utils/appError.js';
 import * as billing from '../services/billingService.js';
 import type { AuthedRequest } from '../middlewares/auth.js';
 
+export async function listPublicPlans(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const out = await billing.listPublicPlans();
+    res.json(out);
+  } catch (e) { next(e); }
+}
+
 export async function listPlans(req: AuthedRequest, res: Response, next: NextFunction) {
   try {
     const out = await billing.listPlans(req.user!.id);

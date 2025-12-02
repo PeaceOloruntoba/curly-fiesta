@@ -5,6 +5,9 @@ import * as ctrl from '../../controllers/billingController.js';
 
 const router = Router();
 
+// Public plans for landing page
+router.get('/public/plans', ctrl.listPublicPlans);
+
 // Plans available for the user (with founder discount applied if eligible)
 router.get('/plans', requireAuth, ctrl.listPlans);
 

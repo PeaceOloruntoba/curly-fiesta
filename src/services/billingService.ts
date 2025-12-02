@@ -29,6 +29,17 @@ export async function listPlans(userId: string) {
   return { is_active: s.is_active, plans: out };
 }
 
+export async function listPublicPlans() {
+  const s = await getSettings();
+  const plans: Plan[] = ['monthly','quarterly','biannual','annual'];
+  const out = plans.map((p) => ({
+    plan: p,
+    price_cents: priceForPlanCents(s, p),
+    currency: s.currency,
+  }));
+  return { is_active: s.is_active, plans: out };
+}
+
 export async function getStatus(userId: string) {
   const s = await getSettings();
   const { rows: sub } = await query('SELECT * FROM user_subscriptions WHERE user_id=$1', [userId]);

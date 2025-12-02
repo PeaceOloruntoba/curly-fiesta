@@ -9,6 +9,7 @@ import shopping from './v1/shopping.js';
 import stats from './v1/stats.js';
 import admin from './v1/admin.js';
 import billing from './v1/billing.js';
+import profile from './v1/profile.js';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/shopping', shopping);
 router.use('/stats', stats);
 router.use('/admin', admin);
 router.use('/billing', billing);
+router.use('/profile', profile);
 
 export default router;

@@ -9,14 +9,14 @@
  - POST /auth/register
    - Body
      ```json
-     { "email":"user@example.com", "password":"P@ssw0rd!", "name":"Ada" }
+     { "first_name":"Ada", "last_name":"Lovelace", "email":"user@example.com", "password":"P@ssw0rd!" }
      ```
    - 201
      ```json
      { "message":"Registered. Verify OTP to activate account.", "otp":"123456" }
      ```
    - Errors
-     - 400 { "error":"Email and password required", "errorMessage":"Enter your email and password" }
+     - 400 { "error":"Missing fields", "errorMessage":"Provide first name, last name, email and password" }
      - 409 { "error":"Email already in use", "errorMessage":"Email already in use" }
  
  - POST /auth/verify-otp
@@ -40,7 +40,7 @@
      ```
    - 200 (rt cookie set; 30d)
      ```json
-     { "token":"<JWT-24h>", "user": { "id":"...", "email":"user@example.com", "name":"Ada", "role":"user" } }
+     { "token":"<JWT-24h>", "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" } }
      ```
    - Errors
      - 400 { "error":"Email and password required", "errorMessage":"Enter your email and password" }
@@ -52,7 +52,7 @@
    - Mobile: header `Authorization: Refresh <token>`
    - 200 (rt rotated)
      ```json
-     { "token":"<JWT-24h>", "user": { "id":"...", "email":"user@example.com", "name":"Ada", "role":"user" } }
+     { "token":"<JWT-24h>", "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" } }
      ```
    - Errors
      - 401 { "error":"Missing token", "errorMessage":"Please sign in" }
@@ -93,11 +93,29 @@
  - GET /users/me
    - 200
      ```json
-     { "id":"...", "email":"user@example.com", "name":"Ada", "role":"user" }
+     { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" }
      ```
    - Errors
      - 401 { "error":"Unauthorized", "errorMessage":"Please sign in" }
      - 404 { "error":"User not found", "errorMessage":"Account not found" }
+ 
+ ### Profile
+ - GET /profile
+   - 200
+     ```json
+     {
+       "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" },
+       "profile": { "avatar_url": null, "bio": null, "health": null, "taste": null, "preferences": null }
+     }
+     ```
+ - PUT /profile (multipart optional)
+   - Fields (all optional):
+     - avatar (file) → uploaded to Cloudinary; only URL stored
+     - bio (string)
+     - health (JSON or stringified JSON)
+     - taste (JSON or stringified JSON)
+     - preferences (JSON or stringified JSON)
+   - 200: { user, profile }
  
  ### Recipes (public read)
  - GET /recipes
@@ -248,6 +266,10 @@ Settings include:
   - 200: { ok:true } — stops auto-renew; access remains until period end
 - POST /billing/webhook/paystack
   - Configure in Paystack Dashboard. Verifies signature and updates subscription.
+
+### Public billing (no auth)
+- GET /billing/public/plans
+  - 200: array of base plans with price_cents and currency for landing page display
 
 ### Enforcement
 - 402 { "error":"Subscription required", "errorMessage":"Subscribe or start trial" }

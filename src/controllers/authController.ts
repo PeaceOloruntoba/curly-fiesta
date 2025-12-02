@@ -14,9 +14,11 @@ import {
 
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password, name } = req.body || {};
-    if (!email || !password) throw AppError.badRequest('Email and password required', 'Enter your email and password');
-    const out = await registerUser(email, password, name);
+    const { email, password, first_name, last_name } = req.body || {};
+    if (!email || !password || !first_name || !last_name) {
+      throw AppError.badRequest('Missing fields', 'Provide first name, last name, email and password');
+    }
+    const out = await registerUser(email, password, first_name, last_name);
     if ('conflict' in out) throw AppError.conflict('Email already in use', 'Email already in use');
     if (env.NODE_ENV !== 'production') {
       return res.status(201).json({ message: 'Registered. Verify OTP to activate account.', otp: out.code });

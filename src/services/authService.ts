@@ -7,15 +7,35 @@ import { env } from '../config/env.js';
 import { sendOtpEmail, sendResetEmail } from '../utils/mailer.js';
 import { logger } from '../config/logger.js';
 
-export async function registerUser(email: string, password: string, name?: string) {
+export async function registerUser(email: string, password: string, first_name: string, last_name: string) {
   const { rows: existing } = await query<{ id: string }>('SELECT id FROM users WHERE email=$1', [email]);
   if (existing.length) return { conflict: true } as const;
   const hash = await bcrypt.hash(password, 10);
   const { rows } = await query<{ id: string }>(
-    'INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id',
-    [email, hash, name || null]
+    'INSERT INTO users(email, password_hash, first_name, last_name) VALUES($1,$2,$3,$4) RETURNING id',
+    [email, hash, first_name, last_name]
   );
   const userId = rows[0].id;
+  // create empty profile row
+  await query('INSERT INTO profiles(user_id) VALUES($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+  // attempt founder mark on register using existing eligibility rules
+  try {
+    const { rows: s } = await query<{ founder_discount_enabled: boolean; founder_window_starts_at: string | null; founder_window_ends_at: string | null; founder_capacity: number; founder_awarded_count: number }>('SELECT founder_discount_enabled, founder_window_starts_at, founder_window_ends_at, founder_capacity, founder_awarded_count FROM subscription_settings WHERE id=TRUE');
+    const set = s[0];
+    if (set?.founder_discount_enabled) {
+      const now = new Date();
+      const starts = set.founder_window_starts_at ? new Date(set.founder_window_starts_at) : null;
+      const ends = set.founder_window_ends_at ? new Date(set.founder_window_ends_at) : null;
+      const within = !!(starts && ends && now >= starts && now <= ends);
+      if (within && set.founder_awarded_count < set.founder_capacity) {
+        await query('UPDATE users SET is_founder=TRUE WHERE id=$1', [userId]);
+        await query('UPDATE subscription_settings SET founder_awarded_count = founder_awarded_count + 1 WHERE id=TRUE');
+        await query(`INSERT INTO user_subscriptions(user_id, plan, status, founder_cycles_left)
+                     VALUES($1,'monthly','none',3)
+                     ON CONFLICT (user_id) DO UPDATE SET founder_cycles_left=GREATEST(COALESCE(user_subscriptions.founder_cycles_left,0),3)`, [userId]);
+      }
+    }
+  } catch {}
   const code = generateOtp();
   const ttlMin = parseInt(env.OTP_TTL_MINUTES, 10) || 10;
   const expires = new Date(Date.now() + ttlMin * 60_000);
@@ -44,8 +64,8 @@ export async function verifyEmailOtp(email: string, code: string) {
 }
 
 export async function loginUser(email: string, password: string, ctx?: { ua?: string; ip?: string }) {
-  const { rows } = await query<{ id: string; password_hash: string; verified_at: string | null; token_version: number; name: string | null; role: 'user' | 'admin' }>(
-    'SELECT id, password_hash, verified_at, token_version, name, role FROM users WHERE email=$1',
+  const { rows } = await query<{ id: string; password_hash: string; verified_at: string | null; token_version: number; first_name: string | null; last_name: string | null; role: 'user' | 'admin' }>(
+    'SELECT id, password_hash, verified_at, token_version, first_name, last_name, role FROM users WHERE email=$1',
     [email]
   );
   if (!rows.length) return { invalid: true } as const;
@@ -61,7 +81,7 @@ export async function loginUser(email: string, password: string, ctx?: { ua?: st
     'INSERT INTO refresh_tokens(user_id, token, token_hash, expires_at, user_agent, ip, last_used_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
     [user.id, rt, hash, rtExpires, ctx?.ua || null, ctx?.ip || null]
   );
-  return { token, rt, rtExpires, userId: user.id, tv: user.token_version, user: { id: user.id, email, name: user.name, role: user.role } } as const;
+  return { token, rt, rtExpires, userId: user.id, tv: user.token_version, user: { id: user.id, email, first_name: user.first_name, last_name: user.last_name, role: user.role } } as const;
 }
 
 export async function refreshAccessToken(rt: string, ctx?: { ua?: string; ip?: string }) {
@@ -78,9 +98,9 @@ export async function refreshAccessToken(rt: string, ctx?: { ua?: string; ip?: s
     'INSERT INTO refresh_tokens(user_id, token, token_hash, expires_at, user_agent, ip, last_used_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
     [rec.user_id, newRt, hash, rtExpires, ctx?.ua || null, ctx?.ip || null]
   );
-  const { rows: u } = await query<{ email: string; token_version: number; name: string | null; role: 'user' | 'admin' }>('SELECT email, token_version, name, role FROM users WHERE id=$1', [rec.user_id]);
+  const { rows: u } = await query<{ email: string; token_version: number; first_name: string | null; last_name: string | null; role: 'user' | 'admin' }>('SELECT email, token_version, first_name, last_name, role FROM users WHERE id=$1', [rec.user_id]);
   const access = signToken({ sub: rec.user_id, email: u[0].email, tv: u[0].token_version });
-  return { token: access, newRt, rtExpires, user: { id: rec.user_id, email: u[0].email, name: u[0].name, role: u[0].role } } as const;
+  return { token: access, newRt, rtExpires, user: { id: rec.user_id, email: u[0].email, first_name: u[0].first_name, last_name: u[0].last_name, role: u[0].role } } as const;
 }
 
 export async function logout(rt?: string) {
