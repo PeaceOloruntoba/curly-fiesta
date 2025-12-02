@@ -3,16 +3,19 @@ import bcrypt from 'bcryptjs';
 import { query } from './pool.js';
 import { logger } from '../config/logger.js';
 import { RECIPES } from '../data/recipes.js';
+import { RECIPES as IMAGE_RECIPES } from '../data/recipe_images.js';
 
 async function main() {
   logger.info('Starting seed...');
   // Recipes + nutrition
   for (const r of RECIPES) {
+    const img = IMAGE_RECIPES.find((x) => x.id === r.id && x.name === r.name);
+    const image_url = img?.image_url ?? null;
     // Insert with fixed ID for stable references
     await query(
-      `INSERT INTO recipes(id, name, category) VALUES($1,$2,$3)
-       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, deleted_at=NULL`,
-      [r.id, r.name, r.category]
+      `INSERT INTO recipes(id, name, category, image_url) VALUES($1,$2,$3,$4)
+       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, image_url=COALESCE(EXCLUDED.image_url, recipes.image_url), deleted_at=NULL`,
+      [r.id, r.name, r.category, image_url]
     );
     // Upsert nutrition per recipe
     await query(

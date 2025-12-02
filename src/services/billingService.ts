@@ -7,14 +7,24 @@ import { sendSubscriptionNotice } from '../utils/mailer.js';
 
 export async function listPlans(userId: string) {
   const s = await getSettings();
-  const { rows } = await query<{ email: string; is_founder: boolean }>('SELECT email, is_founder FROM users WHERE id=$1', [userId]);
+  const { rows } = await query<{ email: string; is_founder: boolean; founder_cycles_left: number | null }>(
+    'SELECT u.email, u.is_founder, us.founder_cycles_left FROM users u LEFT JOIN user_subscriptions us ON us.user_id=u.id WHERE u.id=$1',
+    [userId]
+  );
   const user = rows[0];
   const isFounder = !!user?.is_founder;
+  const cycles = user?.founder_cycles_left ?? 0;
   const plans: Plan[] = ['monthly','quarterly','biannual','annual'];
   const out = plans.map((p) => {
     const base = priceForPlanCents(s, p);
-    const price = applyFounderDiscountCents(base, s, isFounder);
-    return { plan: p, price_cents: price, currency: s.currency };
+    const discountedPrice = applyFounderDiscountCents(base, s, isFounder, cycles);
+    return {
+      plan: p,
+      price_cents: discountedPrice,
+      currency: s.currency,
+      discounted: isFounder && s.founder_discount_enabled && cycles > 0 && discountedPrice !== base,
+      discounted_price_cents: discountedPrice !== base ? discountedPrice : undefined,
+    };
   });
   return { is_active: s.is_active, plans: out };
 }
@@ -46,11 +56,14 @@ export async function initCheckout(userId: string, plan: Plan) {
   await markFounderIfEligible(userId);
   // Gather user + pricing
   const s = await getSettings();
-  const { rows: userRows } = await query<{ email: string; is_founder: boolean }>('SELECT email, is_founder FROM users WHERE id=$1', [userId]);
+  const { rows: userRows } = await query<{ email: string; is_founder: boolean; founder_cycles_left: number | null }>(
+    'SELECT u.email, u.is_founder, us.founder_cycles_left FROM users u LEFT JOIN user_subscriptions us ON us.user_id=u.id WHERE u.id=$1',
+    [userId]
+  );
   const email = userRows[0]?.email;
   if (!email) throw new AppError(400, 'User email missing', 'Cannot initialize payment');
   const base = priceForPlanCents(s, plan);
-  const amountCents = applyFounderDiscountCents(base, s, !!userRows[0]?.is_founder);
+  const amountCents = applyFounderDiscountCents(base, s, !!userRows[0]?.is_founder, userRows[0]?.founder_cycles_left ?? 0);
   const amountKobo = amountCents * 1; // cents already represent kobo if currency is NGN; keep 1:1
   // Create or update pending record
   const ref = crypto.randomBytes(8).toString('hex');
@@ -113,7 +126,12 @@ export async function handleWebhook(rawBody: string, signature?: string) {
     if (plan === 'biannual') end.setMonth(end.getMonth() + 6);
     if (plan === 'annual') end.setFullYear(end.getFullYear() + 1);
     await query(
-      `UPDATE user_subscriptions SET status='active', current_period_start=$2, current_period_end=$3, gateway_subscription_code=$4, updated_at=NOW() WHERE user_id=$1`,
+      `UPDATE user_subscriptions
+       SET status='active', current_period_start=$2, current_period_end=$3,
+           gateway_subscription_code=$4,
+           founder_cycles_left = GREATEST(COALESCE(founder_cycles_left,0) - 1, 0),
+           updated_at=NOW()
+       WHERE user_id=$1`,
       [userId, start, end, event?.data?.subscription_code || null]
     );
     const { rows: u } = await query<{ email: string }>('SELECT email FROM users WHERE id=$1', [userId]);

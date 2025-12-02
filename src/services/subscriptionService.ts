@@ -46,12 +46,23 @@ export async function markFounderIfEligible(userId: string): Promise<boolean> {
   const now = new Date();
   const starts = s.founder_window_starts_at ? new Date(s.founder_window_starts_at) : null;
   const ends = s.founder_window_ends_at ? new Date(s.founder_window_ends_at) : null;
-  if (!starts || !ends || now < starts || now > ends) return false;
+  // Standard window check
+  let withinWindow = !!(starts && ends && now >= starts && now <= ends);
+  // Per request: also allow awarding after window end if discount is enabled and capacity not yet reached
+  if (!withinWindow && ends && now > ends) withinWindow = true;
+  if (!withinWindow) return false;
   if (s.founder_awarded_count >= s.founder_capacity) return false;
   // try to mark user as founder
   const upd = await query<{ ok: number }>('UPDATE users SET is_founder=TRUE WHERE id=$1 AND is_founder=FALSE RETURNING 1 as ok', [userId]);
   if (upd.rows && upd.rows.length) {
     await query('UPDATE subscription_settings SET founder_awarded_count = founder_awarded_count + 1, updated_at=NOW() WHERE id=TRUE');
+    // Ensure a subscription row exists and seed 3 discounted cycles
+    await query(
+      `INSERT INTO user_subscriptions(user_id, plan, status, founder_cycles_left)
+       VALUES($1,'monthly','none',3)
+       ON CONFLICT (user_id) DO UPDATE SET founder_cycles_left = GREATEST(COALESCE(user_subscriptions.founder_cycles_left,0), 3), updated_at=NOW()`,
+      [userId]
+    );
     return true;
   }
   return false;
@@ -97,8 +108,8 @@ export async function requireActiveOrTrial(userId: string): Promise<{ ok: boolea
   return { ok: false, reason: 'Subscription required' };
 }
 
-export function applyFounderDiscountCents(amountCents: number, s: SubscriptionSettings, isFounder: boolean): number {
-  if (isFounder && s.founder_discount_enabled) {
+export function applyFounderDiscountCents(amountCents: number, s: SubscriptionSettings, isFounder: boolean, founderCyclesLeft?: number | null): number {
+  if (isFounder && s.founder_discount_enabled && (founderCyclesLeft ?? 0) > 0) {
     return Math.floor(amountCents * (100 - s.founder_discount_pct) / 100);
   }
   return amountCents;
