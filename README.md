@@ -105,7 +105,42 @@
      ```json
      {
        "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" },
-       "profile": { "avatar_url": null, "bio": null, "health": null, "taste": null, "preferences": null }
+       "profile": {
+         "avatar_url": null,
+         "bio": null,
+         "health": {
+           "age": null,
+           "gender": null,
+           "height_cm": null,
+           "weight_kg": null,
+           "activity_level": null,
+           "health_goals": [],
+           "food_allergies": [],
+           "medical_dietary_restrictions": [],
+           "preferred_calorie_range": null,
+           "macronutrient_focus": []
+         },
+         "taste": {
+           "favorite_flavors": [],
+           "cuisine_preferences": [],
+           "heat_tolerance": null,
+           "texture_preference": [],
+           "foods_loved": [],
+           "foods_disliked": [],
+           "snack_personality": null
+         },
+         "preferences": {
+           "meal_prep_style": null,
+           "cooking_skill_level": null,
+           "budget_level": null,
+           "meals_per_day": null,
+           "diet_type": null,
+           "household_size": null,
+           "shopping_frequency": null,
+           "kitchen_equipment_available": [],
+           "leftovers_preference": null
+         }
+       }
      }
      ```
  - PUT /profile (multipart optional)
@@ -115,7 +150,58 @@
      - health (JSON or stringified JSON)
      - taste (JSON or stringified JSON)
      - preferences (JSON or stringified JSON)
-   - 200: { user, profile }
+     - first_name (string) — update user's first name
+     - last_name (string) — update user's last name
+     - Alternatively send nested object: `user.first_name`, `user.last_name`
+     - Additional normalized profile fields (all optional; nullable):
+       - Health
+         - age (number)
+         - gender ("male" | "female" | "non_binary" | "prefer_not_to_say")
+         - height_cm (number)
+         - weight_kg (number)
+         - activity_level ("sedentary" | "lightly_active" | "moderately_active" | "very_active" | "athlete")
+         - health_goals (string[]) — e.g., ["lose_weight","build_muscle"]
+         - food_allergies (string[]) — e.g., ["nuts","gluten"]
+         - medical_dietary_restrictions (string[]) — e.g., ["diabetes","ulcer"]
+         - preferred_calorie_range ("1200-1500" | "1500-1800" | "1800-2200" | "2200-2500" | "2500-plus")
+         - macronutrient_focus (string[])
+       - Taste
+         - favorite_flavors (string[])
+         - cuisine_preferences (string[])
+         - heat_tolerance ("none" | "mild" | "medium" | "hot" | "very_hot")
+         - texture_preference (string[])
+         - foods_loved (string[])
+         - foods_disliked (string[])
+         - snack_personality ("sweet_tooth" | "fitfam" | "small_chops_addict" | "healthy_snacker" | "random_grazer")
+       - Preferences
+         - meal_prep_style ("quick_10mins" | "15-30mins" | "gourmet" | "batch_cooking" | "no_cook")
+         - cooking_skill_level ("beginner" | "intermediate" | "advanced" | "chef_mode")
+         - budget_level ("low" | "medium" | "high")
+         - meals_per_day (number)
+         - diet_type ("none" | "keto" | "vegan" | "vegetarian" | "pescatarian" | "low_carb" | "high_protein" | "halal" | "gluten_free")
+         - household_size ("1" | "2" | "3" | "4" | "5_plus")
+         - shopping_frequency ("daily" | "few_times_week" | "weekly" | "biweekly" | "monthly")
+         - kitchen_equipment_available (string[])
+         - leftovers_preference ("love_it" | "sometimes" | "hate_it")
+  - Examples:
+    - multipart form with avatar and names
+      - fields: avatar=<file>, first_name=Ada, last_name=Lovelace
+    - JSON body (no file)
+      ```json
+      {
+        "bio":"Hello there",
+        "user": { "first_name":"Ada", "last_name":"Lovelace" },
+        "age": 28,
+        "gender": "female",
+        "health_goals": ["lose_weight","improve_energy"],
+        "favorite_flavors": ["spicy","savory"],
+        "meals_per_day": 3
+      }
+      ```
+  - 200
+    ```json
+    { "user": { "id":"...", "email":"user@example.com", "first_name":"Ada", "last_name":"Lovelace", "role":"user" }, "profile": { "avatar_url":"https://...", "bio":"Hello there", "health": null, "taste": null, "preferences": null } }
+    ```
  
  ### Recipes (public read)
  - GET /recipes

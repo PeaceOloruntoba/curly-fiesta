@@ -19,12 +19,22 @@ export async function getUserBasic(userId: string) {
   return rows[0] || null;
 }
 
+export async function updateUserBasic(userId: string, data: { first_name?: string | null; last_name?: string | null }) {
+  const sets: string[] = []; const params: any[] = []; let i = 1;
+  if (data.first_name !== undefined) { sets.push(`first_name=$${i++}`); params.push(data.first_name); }
+  if (data.last_name !== undefined) { sets.push(`last_name=$${i++}`); params.push(data.last_name); }
+  if (!sets.length) return getUserBasic(userId);
+  params.push(userId);
+  await query(`UPDATE users SET ${sets.join(', ')} WHERE id=$${i}`,[...params]);
+  return getUserBasic(userId);
+}
+
 export async function getProfile(userId: string) {
   const { rows } = await query<Profile>('SELECT * FROM profiles WHERE user_id=$1', [userId]);
   return rows[0] || null;
 }
 
-export async function upsertProfile(userId: string, patch: { avatar_url?: string | null; bio?: string | null; health?: any; taste?: any; preferences?: any; }) {
+export async function upsertProfile(userId: string, patch: Record<string, any>) {
   // Ensure row exists
   await query('INSERT INTO profiles(user_id) VALUES($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
   const keys = Object.keys(patch) as (keyof typeof patch)[];
