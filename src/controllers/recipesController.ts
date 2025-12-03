@@ -22,12 +22,28 @@ export async function create(req: Request, res: Response) {
     const up = await uploadRecipeImage(file.buffer, file.originalname);
     image_url = up.url;
   }
-  const created = await svc.createRecipe({ name, category, image_url });
+  const description: string | undefined = (req.body as any)?.description;
+  const details: string | undefined = (req.body as any)?.details;
+  // Nutrition fields, optional
+  const calories = (req.body as any)?.calories;
+  const protein_grams = (req.body as any)?.protein_grams;
+  const carbs_grams = (req.body as any)?.carbs_grams;
+  const fat_grams = (req.body as any)?.fat_grams;
+  const hasNutrition = [calories, protein_grams, carbs_grams, fat_grams].some((v) => typeof v !== 'undefined');
+  const nutrition = hasNutrition ? {
+    calories: calories != null ? Number(calories) : undefined,
+    protein_grams: protein_grams != null ? Number(protein_grams) : undefined,
+    carbs_grams: carbs_grams != null ? Number(carbs_grams) : undefined,
+    fat_grams: fat_grams != null ? Number(fat_grams) : undefined,
+  } : undefined;
+  const created = await svc.createRecipe({ name, category, image_url, description, details, nutrition });
   res.status(201).json(created);
 }
 export async function update(req: Request, res: Response) {
   const id = Number(req.params.id);
-  const out = await svc.updateRecipe(id, req.body || {});
+  // Accept description and details JSON
+  const patch: any = { ...req.body };
+  const out = await svc.updateRecipe(id, patch || {});
   if (!out.updated) throw AppError.badRequest('No updatable fields', 'Nothing to update');
   res.json({ ok: true });
 }

@@ -343,13 +343,18 @@
    - 200 { "ok": true }
  
  ### Recipes management
- - POST /recipes (multipart)
+  - POST /recipes (multipart)
   - Fields: name (req), category (req), EITHER image (file) OR image_url (string). If both are provided, uploaded file takes precedence.
+    - description (string, optional)
+    - details (JSON or stringified JSON, optional)
+    - nutrition fields (optional): calories, protein_grams, carbs_grams, fat_grams
+      - If provided, they are saved to the nutrition table atomically with the recipe
   - 201 { "id":123 }
   - Errors: 400 { "error":"name and category required", "errorMessage":"Provide name and category" }
- - PUT /recipes/:id
-   - Body: any of { name, category, image_url }
-   - 200 { "ok": true } | 400 { "error":"No updatable fields", "errorMessage":"Nothing to update" }
+  - PUT /recipes/:id
+  - Body: any of { name, category, image_url, description, details }
+    - details accepts JSON or stringified JSON
+  - 200 { "ok": true } | 400 { "error":"No updatable fields", "errorMessage":"Nothing to update" }
  - POST /recipes/:id/image (multipart, field "image")
    - 200 { "id":123, "image_url":"https://..." }
  - DELETE /recipes/:id

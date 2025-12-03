@@ -11,19 +11,35 @@ async function main() {
   for (const r of RECIPES) {
     const img = IMAGE_RECIPES.find((x) => x.id === r.id && x.name === r.name);
     const image_url = img?.image_url ?? null;
+    const description = (img as any)?.description ?? null;
+    const details = (img as any)?.details ?? null;
     // Insert with fixed ID for stable references
     await query(
-      `INSERT INTO recipes(id, name, category, image_url) VALUES($1,$2,$3,$4)
-       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, image_url=COALESCE(EXCLUDED.image_url, recipes.image_url), deleted_at=NULL`,
-      [r.id, r.name, r.category, image_url]
+      `INSERT INTO recipes(id, name, category, image_url, description, details) VALUES($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category,
+         image_url=COALESCE(EXCLUDED.image_url, recipes.image_url),
+         description=COALESCE(EXCLUDED.description, recipes.description),
+         details=COALESCE(EXCLUDED.details, recipes.details),
+         deleted_at=NULL`,
+      [r.id, r.name, r.category, image_url, description, details]
     );
     // Upsert nutrition per recipe
-    await query(
-      `INSERT INTO nutrition(recipe_id, calories, protein_grams, carbs_grams, fat_grams)
-       VALUES($1,$2,$3,$4,$5)
-       ON CONFLICT DO NOTHING`,
-      [r.id, r.calories, r.protein, r.carbs, r.fat]
+    const cal = (img as any)?.calories ?? r.calories ?? 0;
+    const prot = (img as any)?.protein ?? r.protein ?? 0;
+    const carbs = (img as any)?.carbs ?? r.carbs ?? 0;
+    const fat = (img as any)?.fat ?? r.fat ?? 0;
+    // Try update first
+    const upd = await query<{ rowCount:number }>(
+      `UPDATE nutrition SET calories=$2, protein_grams=$3, carbs_grams=$4, fat_grams=$5 WHERE recipe_id=$1 RETURNING 1 as rowCount`,
+      [r.id, cal, prot, carbs, fat]
     );
+    if (!upd.rows.length) {
+      await query(
+        `INSERT INTO nutrition(recipe_id, calories, protein_grams, carbs_grams, fat_grams)
+         VALUES($1,$2,$3,$4,$5)`,
+        [r.id, cal, prot, carbs, fat]
+      );
+    }
   }
 
   // Demo user
