@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { requireAuth, requireAdmin, type AuthedRequest } from '../../middlewares/auth.js';
 import { query } from '../../db/pool.js';
 import * as subs from '../../services/subscriptionService.js';
+import * as newsletterCtrl from '../../controllers/admin/newsletter.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -16,6 +17,13 @@ router.get('/users', async (req: Request, res: Response) => {
   const { rows } = await query('SELECT id, email, name, role, deleted_at FROM users ORDER BY created_at DESC LIMIT 100');
   return res.json(rows);
 });
+
+// Newsletters
+router.post('/newsletters', newsletterCtrl.create);
+
+router.get('/newsletters', newsletterCtrl.list);
+
+router.get('/newsletters/:id', newsletterCtrl.get);
 
 // Set role
 router.post('/users/:id/role', async (req: Request, res: Response) => {
